@@ -1,0 +1,386 @@
+---
+title: "Entrega 3"
+author: "Vania Gastulo"
+date: '2022-05-11'
+output: html_document
+---
+
+## **TRABAJO EN GRUPO** <br>
+
+### Curso: POL 304 - Estadística para el análisis político 2 <br>
+
+### Nombres y apellidos: Vania Nicoll Gastulo Machado <br>
+
+### Código: 20190617 <br>
+
+### Semestre 2022-1<br>
+
+======================================================================
+
+###**a. Introducción y objetivos** <br>
+
+El presente estudio busca ser un análisis exploratorio de los factores que afectan la participación de las mujeres en la fuerza laboral. Para toma como unidad de análisis a todos los países del mundo, basandonos en la información que provee el Banco Mundial para el año 2016.
+
+```{r}
+library(rio)
+data=import("Data_World_Bank_2016.xlsx")
+```
+
+###**b. Explicacion de la variable dependiente y sustentación con literatura de las independientes propuestas.**<br>
+
+```{r}
+names(data)
+```
+
+```{r}
+data$`Country Name`<-as.factor(data$`Country Name`)
+data = data[complete.cases(data$`Country Name`),]
+```
+
+
+    **Variable Dependiente:**
+     - Porcentaje de participación de mujeres en la fuerza laboral (FLF)
+
+```{r}
+str(data$FLF)
+```
+
+```{r}
+data$FLF<-as.numeric(data$FLF)
+data = data[complete.cases(data$FLF),]
+summary(data$FLF)
+```
+
+  **Variables Independientes:**
+    1. Tasa de embarazo adolescente (AFR)
+    2. Una mujer puede firmar un contrato de la misma forma que un hombre (WSC)
+
+**Adolescent Fertility Rate**
+```{r}
+str(data$ARF)
+```
+
+```{r}
+data$ARF<-as.numeric(data$ARF)
+data = data[complete.cases(data$ARF),]
+summary(data$ARF)
+```
+
+**Women can sign a contract the same way as a man**
+
+```{r}
+str(data$WSC)
+```
+
+```{r}
+data$WSC<-as.factor(data$WSC)
+data = data[complete.cases(data$WSC),]
+summary(data$WSC)
+```
+
+```{r}
+levels(data$WSC)<-c("NO","SÍ") 
+summary(data$WSC)
+```
+
+```{r}
+table(as.numeric(data$WSC))
+```
+
+
+###**c. Analisis de regresión** <br> 
+  
+##**Primera regresión**
+Objetivo: Analizar si la variable WSC afecta a nuestra variable dependiente (FLF)
+
+###Prueba de normalidad y correlación#
+
+```{r}
+library(nortest)
+lillie.test(data$FLF)
+```
+
+```{r}
+plot(data$WSC,data$FLF)
+```
+
+```{r}
+library(nortest)
+lillie.test(data$ARF)
+```
+
+```{r}
+plot(data$ARF,data$FLF)
+```
+
+###Regresión lineal simple
+
+```{r}
+Model1=lm(FLF~WSC,data=data)
+summary(Model1)
+```
+
+```{r}
+Model2=lm(FLF~ARF,data=data)
+summary(Model2)
+```
+
+###Regresión Gaussiana (lineal múltiple)
+```{r}
+Model3=lm(FLF~ARF+WSC, data=data)
+summary(Model3)
+```
+En primer lugar, ambas variables aportan de manera significativa al modelo, pues tienen un p-value menor a 0.05. No obstante, el modelo solo explica en 0.1032% la variable dependiente.
+
+### Comparación de Modelos 
+
+```{r}
+library(stargazer)
+stargazer(Model1,Model2,Model3, type ="text")
+```
+
+###**d. Analisis de cluster** <br> 
+(tus propias variables + otras del grupo): SOLO GRAFICA CON escalamiento multidimensional (mapa de puntos coloreado)
+
+```{r}
+data$GDE<-as.numeric(data$GDE)
+data = data[complete.cases(data$GDE),]
+summary(data$GDE)
+```
+
+```{r}
+data$BSS<-as.numeric(data$BSS)
+data = data[complete.cases(data$BSS),]
+summary(data$BSS)
+```
+
+```{r}
+data$UET<-as.numeric(data$UET)
+data = data[complete.cases(data$UET),]
+summary(data$UET)
+```
+
+```{r}
+list(names(data))
+```
+
+```{r}
+data_c = data[,c(1,3,4,5)]
+```
+
+```{r}
+library(readr)
+str(data_c)
+```
+
+```{r}
+summary(data_c)
+```
+
+```{r}
+boxplot(data_c[,-1])
+```
+
+```{r}
+library(BBmisc)
+boxplot(normalize(data_c[,-1],method='range',range=c(0,1)))
+```
+
+```{r}
+data_c[,-1]=normalize(data_c[,-1],method='standardize')
+data_c=data_c[complete.cases(data_c),]
+
+summary(data_c)
+```
+```{r}
+boxplot(normalize(data_c[,-1],method='standardize'))
+```
+
+###Correlaciones
+
+```{r}
+data_C = data[,c(1,3,4,5,6,7,8)]
+```
+
+```{r}
+library(polycor)
+hetcor(data_C[,-1])
+```
+
+
+```{r}
+data_C$FLF=-1*data_C$FLF
+hetcor(data_C[,-1])
+```
+
+##Clusterización
+
+Calcular distancia
+
+```{r}
+str(data_C)
+```
+
+```{r}
+library(cluster)
+D <- daisy(data_C, metric = "gower")
+```
+
+```{r}
+set.seed(123)
+pam.resultado=pam(D,4,cluster.only = F)
+
+#nueva columna
+data_C$pam=pam.resultado$cluster
+```
+
+```{r}
+aggregate(.~ pam, data=data_C,mean)
+```
+
+### Estrategia Aglomerativa
+```{r}
+set.seed(123)
+library(factoextra)
+library(ggplot2)
+
+res.agnes<- hcut(D, k = 4,hc_func='agnes',hc_method = "ward.D")
+
+data_C$agnes=res.agnes$cluster
+```
+
+```{r}
+aggregate(.~ agnes, data=data_C,mean)
+```
+
+
+###Visualización del Conglomerado
+- Dendograma
+```{r}
+fviz_dend(res.agnes, cex = 0.7, horiz = T)
+```
+
+```{r}
+table(data_C$pam,data_C$agnes,dnn = c('Particion','Aglomeracion'))
+```
+
+###Estrategia Divisiva
+
+```{r}
+set.seed(123)
+res.diana <- hcut(D, k = 4,hc_func='diana')
+data_C$diana=res.diana$cluster
+```
+
+```{r}
+aggregate(.~ diana, data=data_C,mean)
+```
+
+###Visualización del Conglomerado
+- Dendograma
+```{r}
+fviz_dend(res.diana, cex = 0.7, horiz = T)
+```
+##Comparación de Clusters
+
+```{r}
+table(data_C$diana,data_C$agnes,dnn = c('Division','Aglomeracion'))
+```
+
+##Estrategia Basada en Densidad
+
+###Mapa de casos
+
+```{r}
+proyeccion = cmdscale(D, k=2,add = T)
+```
+
+```{r}
+data_C$dim1 <- proyeccion$points[,1]
+data_C$dim2 <- proyeccion$points[,2]
+```
+
+```{r}
+base= ggplot(data_C,aes(x=dim1, y=dim2,label=row.names(data_C))) 
+base + geom_text(size=3)
+```
+
+- Pam
+```{r}
+base= ggplot(data_C,aes(x=dim1, y=dim2)) +  coord_fixed()
+base + geom_point(size=2, aes(color=as.factor(pam)))  + labs(title = "PAM") 
+```
+
+-Agnes
+```{r}
+base + geom_point(size=2, aes(color=as.factor(agnes))) + labs(title = "AGNES")
+```
+
+- Diana
+```{r}
+base + geom_point(size=2, aes(color=as.factor(diana))) + labs(title = "DIANA")
+```
+
+```{r}
+g.dist.cmd = daisy(data_C[,c('dim1','dim2')], metric = 'euclidean')
+```
+
+```{r}
+library(dbscan)
+kNNdistplot(g.dist.cmd, k=3)
+```
+
+```{r}
+library(fpc)
+db.cmd = fpc::dbscan(g.dist.cmd, eps=0.065, MinPts=3,method = 'dist')
+```
+
+```{r}
+db.cmd
+```
+
+```{r}
+data_C$db=as.factor(db.cmd$cluster)
+```
+
+```{r}
+library(ggrepel)
+base= ggplot(data_C[data_C$db!=0,],aes(x=dim1, y=dim2)) + coord_fixed()
+
+dbplot= base + geom_point(aes(color=db)) 
+
+dbplot + geom_point(data=data_C[data_c$db==0,],
+                    shape=0) 
+```
+
+##. Analisis factorial (tus propias variables + otras del grupo): solo grafica de factores
+
+###Proceso del Analisis Factorial Exploratorio (EFA)
+
+1.Matriz de correlación:
+```{r}
+dontselect=c("Country")
+select=setdiff(names(data_C),dontselect) 
+Data=data_C[,select]
+```
+
+```{r}
+library(polycor)
+corMatrix=polycor::hetcor(Data)$correlations
+```
+
+2. Explorar correlaciones:
+```{r}
+library(ggcorrplot)
+ggcorrplot(corMatrix)
+```
+
+```{r}
+library(psych)
+psych::KMO(corMatrix) 
+```
+
+```{r}
+cortest.bartlett(corMatrix,n=nrow(Data))$p.value>0.05
+```
+
